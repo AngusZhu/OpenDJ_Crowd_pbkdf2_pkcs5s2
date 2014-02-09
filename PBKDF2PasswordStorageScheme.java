@@ -25,6 +25,7 @@
  */
 package org.opends.server.extensions;
 
+import java.awt.datatransfer.StringSelection;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -78,10 +79,14 @@ public class PBKDF2PasswordStorageScheme
    * The number of bytes of random data to use as the salt when generating the
    * hashes.
    */
-  private static final int NUM_SALT_BYTES = 8;
+  private static final int NUM_SALT_BYTES = 16;
 
   // The number of bytes the SHA-1 algorithm produces
-  private static final int SHA1_LENGTH = 20;
+  private static final int SHA1_LENGTH = 32;
+
+  //Alternative algo identifier
+
+  private static final String PKCS5S2_SCHEME = "PKCS5S2";
 
   // The factory used to generate the PBKDF2 hashes.
   private SecretKeyFactory factory;
@@ -164,7 +169,7 @@ public class PBKDF2PasswordStorageScheme
   @Override()
   public String getStorageSchemeName()
   {
-    return STORAGE_SCHEME_NAME_PBKDF2;
+    return PKCS5S2_SCHEME;
   }
 
 
@@ -186,8 +191,9 @@ public class PBKDF2PasswordStorageScheme
       try
       {
         random.nextBytes(saltBytes);
-
-        plaintextChars = plaintext.toString().toCharArray();
+        byte[] byteSecInPlaintToArr = plaintext.toByteArray();
+        String strinFromUtf8ByteArray = new String(byteSecInPlaintToArr, "UTF-8");
+        plaintextChars = strinFromUtf8ByteArray.toCharArray();
         KeySpec spec = new PBEKeySpec(plaintextChars,
             saltBytes, iterations, SHA1_LENGTH * 8);
         digestBytes = factory.generateSecret(spec).getEncoded();
@@ -213,9 +219,13 @@ public class PBKDF2PasswordStorageScheme
     // Append the salt to the hashed value and base64-the whole thing.
     byte[] hashPlusSalt = new byte[digestBytes.length + NUM_SALT_BYTES];
 
-    System.arraycopy(digestBytes, 0, hashPlusSalt, 0, digestBytes.length);
-    System.arraycopy(saltBytes, 0, hashPlusSalt, digestBytes.length,
-                     NUM_SALT_BYTES);
+    //System.arraycopy(digestBytes, 0, hashPlusSalt, 0, digestBytes.length);
+    //System.arraycopy(saltBytes, 0, hashPlusSalt, digestBytes.length,
+                    // NUM_SALT_BYTES);
+    
+    System.arraycopy(saltBytes, 0, hashPlusSalt, 0, NUM_SALT_BYTES);
+    System.arraycopy(digestBytes, 0, hashPlusSalt, NUM_SALT_BYTES, digestBytes.length);
+
 
     StringBuilder sb = new StringBuilder();
     sb.append(Integer.toString(iterations));
@@ -235,7 +245,7 @@ public class PBKDF2PasswordStorageScheme
   {
     StringBuilder buffer = new StringBuilder();
     buffer.append('{');
-    buffer.append(STORAGE_SCHEME_NAME_PBKDF2);
+    buffer.append(PKCS5S2_SCHEME);
     buffer.append('}');
 
     buffer.append(encodePassword(plaintext));
@@ -284,9 +294,10 @@ public class PBKDF2PasswordStorageScheme
         return false;
       }
       saltBytes = new byte[saltLength];
-      System.arraycopy(decodedBytes, 0, digestBytes, 0, SHA1_LENGTH);
-      System.arraycopy(decodedBytes, SHA1_LENGTH, saltBytes, 0,
-                       saltLength);
+      System.arraycopy(decodedBytes, 0, saltBytes, 0,
+              saltLength);
+      System.arraycopy(decodedBytes, saltLength, digestBytes, 0, SHA1_LENGTH);
+      
     }
     catch (Exception e)
     {
@@ -305,9 +316,15 @@ public class PBKDF2PasswordStorageScheme
     // Use the salt to generate a digest based on the provided plain-text value.
     int plainBytesLength = plaintextPassword.length();
     byte[] plainPlusSalt = new byte[plainBytesLength + saltLength];
-    plaintextPassword.copyTo(plainPlusSalt);
+    System.arraycopy(saltBytes, 0, plainPlusSalt, 0,
+            saltLength);
+    System.arraycopy(plaintextPassword.toByteArray(), 0, plainPlusSalt, saltLength,
+    		plainBytesLength);
+    /*plaintextPassword.copyTo(plainPlusSalt);
     System.arraycopy(saltBytes, 0, plainPlusSalt, plainBytesLength,
-                     saltLength);
+         saltLength);
+    */
+   
 
     byte[] userDigestBytes;
     char[] plaintextChars = null;
@@ -316,7 +333,11 @@ public class PBKDF2PasswordStorageScheme
     {
       try
       {
-        plaintextChars = plaintextPassword.toString().toCharArray();
+    	  byte[] byteSecInPlaintToArr = plaintextPassword.toByteArray();
+          String strinFromUtf8ByteArray = new String(byteSecInPlaintToArr, "UTF-8");
+          plaintextChars = strinFromUtf8ByteArray.toCharArray();
+        
+         // plaintextChars = plaintextPassword.toString().toCharArray();
         KeySpec spec = new PBEKeySpec(
             plaintextChars, saltBytes,
             iterations, SHA1_LENGTH * 8);
@@ -383,7 +404,7 @@ public class PBKDF2PasswordStorageScheme
       try
       {
         random.nextBytes(saltBytes);
-
+        
         plaintextChars = plaintext.toString().toCharArray();
         KeySpec spec = new PBEKeySpec(
             plaintextChars, saltBytes,
@@ -518,7 +539,7 @@ public class PBKDF2PasswordStorageScheme
          throws DirectoryException
   {
     Message message =
-        ERR_PWSCHEME_NOT_REVERSIBLE.get(STORAGE_SCHEME_NAME_PBKDF2);
+        ERR_PWSCHEME_NOT_REVERSIBLE.get(PKCS5S2_SCHEME);
     throw new DirectoryException(ResultCode.CONSTRAINT_VIOLATION, message);
   }
 
@@ -609,7 +630,7 @@ public class PBKDF2PasswordStorageScheme
     System.arraycopy(saltBytes, 0, hashPlusSalt, digestBytes.length,
                      NUM_SALT_BYTES);
 
-    return "{" + STORAGE_SCHEME_NAME_PBKDF2 + "}" + iterations + ":" +
+    return "{" + PKCS5S2_SCHEME + "}" + iterations + ':' +
       Base64.encode(hashPlusSalt);
   }
 
