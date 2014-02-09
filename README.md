@@ -8,6 +8,7 @@ http://sources.forgerock.org/browse/opendj/trunk/opends/src/server/org/opends/se
 and adapted to follow Crowd (and all the Atlassian products) and ApacheDS implementation of the PKCS5S2 password encoding hashing, see:
 
 http://pythonhosted.org/passlib/lib/passlib.hash.atlassian_pbkdf2_sha1.html
+
 https://issues.apache.org/jira/browse/DIRSERVER-1898
 
 # Changes
